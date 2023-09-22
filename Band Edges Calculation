@@ -1,0 +1,246 @@
+import tkinter as tk
+from tkinter import ttk
+from ttkbootstrap import Style
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import matplotlib.pyplot as plt
+import tkinter.messagebox as messagebox
+
+# Datos de electronegatividades de elementos químicos
+element_data = {
+    "H": 7.18, "Li": 3.01, "Be": 4.9, "B": 4.29, "C": 6.27,
+    "N": 7.3, "O": 7.54, "F": 10.41, "Na": 2.85, "Mg": 3.75,
+    "Al": 3.23, "Si": 4.77, "P": 5.62, "S": 6.22, "Cl": 8.3,
+    "K": 2.42, "Ca": 2.2, "Sc": 3.34, "Ti": 3.34, "V": 3.6,
+    "Cr": 3.72, "Mn": 3.72, "Fe": 4.06, "Co": 4.3, "Ni": 4.4,
+    "Cu": 4.48, "Zn": 4.45, "Ga": 3.2, "Ge": 4.6, "As": 5.3,
+    "Se": 5.89, "Br": 7.59, "Rb": 2.34, "Sr": 2, "Y": 3.19,
+    "Zr": 3.64, "Nb": 4, "Mo": 3.9, "Ru": 4.5, "Rh": 4.3,
+    "Pd": 4.45, "Ag": 4.44, "Cd": 4.33, "In": 3.1, "Sn": 4.3,
+    "Sb": 4.85, "Te": 5.49, "I": 6.76, "Cs": 2.18, "Ba": 2.4,
+    "La": 3.1, "Hf": 3.8, "Ta": 4.11, "W": 4.4, "Re": 4.02,
+    "Os": 4.9, "Ir": 5.4, "Pt": 5.6, "Au": 5.77, "Hg": 4.91, 
+    "Tl": 3.2, "Pb": 3.9, "Bi": 4.69, "Ce": 2.98
+}
+
+
+
+
+def get_element_data(element):
+    formatted_element = element.capitalize()
+    return element_data.get(formatted_element, None)
+
+
+def get_element_data_GUI(elements, subindices, num_elements):
+    electronegativities = []
+    for i in range(num_elements):
+        electronegativity = get_element_data(elements[i].get())
+        if electronegativity is None:
+            messagebox.showerror("Error", f"Elemento {elements[i].get()} no encontrado.")
+            return None, None
+        electronegativities.append(electronegativity)
+
+    calculation = 1
+    for i in range(num_elements):
+        calculation *= electronegativities[i] ** (float(subindices[i].get()))
+    calculation = round(calculation, 2)
+    calculation = calculation ** (1 / sum([float(subindices[i].get()) for i in range(num_elements)]))
+    return calculation, electronegativities
+
+
+def calculate_band_borders(calculation, Eg):
+    Bc1 = -1 * calculation + 0.5 * Eg
+    Bv1 = -1 * calculation - 0.5 * Eg
+    Bc2 = calculation - 0.5 * Eg - 4.5
+    Bv2 = calculation + 0.5 * Eg - 4.5
+    return Bc1, Bv1, Bc2, Bv2
+
+def generate_chart_popup(elements, subindices, Bc1, Bv1, Bc2, Bv2):
+    compound = ' '.join([f"{elements[i].get()}{str(subindices[i].get())}" for i in range(len(elements))])
+
+    # Gráfico respecto a AVS
+    fig_avs = plt.figure(figsize=(8, 6), dpi=100)
+    plt.violinplot([Bc1, Bv1])
+    plt.ylabel('Potencial/eV vs AVS')
+    plt.title(f"Bordes de banda de valencia y conducción vs AVS")
+    plt.gca().invert_yaxis()
+    plt.ylim(-8, -2)
+
+    window_avs = tk.Toplevel()
+    window_avs.wm_title("Gráfica AVS")
+
+    canvas_avs = FigureCanvasTkAgg(fig_avs, master=window_avs)
+    canvas_avs.draw()
+    canvas_avs.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+    toolbar_avs = NavigationToolbar2Tk(canvas_avs, window_avs)
+    toolbar_avs.update()
+    canvas_avs.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+    # Gráfico respecto a NHE
+    fig_nhe = plt.figure(figsize=(8, 6), dpi=100)
+    plt.violinplot([Bc2, Bv2])
+    plt.ylabel('Potencial/eV vs NHE')
+    plt.title(f"Bordes de banda de valencia y conducción vs NHE")
+    plt.gca().invert_yaxis()
+    plt.ylim(-2, 4)
+
+    window_nhe = tk.Toplevel()
+    window_nhe.wm_title("Gráfica NHE")
+
+    canvas_nhe = FigureCanvasTkAgg(fig_nhe, master=window_nhe)
+    canvas_nhe.draw()
+    canvas_nhe.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+    toolbar_nhe = NavigationToolbar2Tk(canvas_nhe, window_nhe)
+    toolbar_nhe.update()
+    canvas_nhe.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+def copy_text(text, root):
+    root.clipboard_clear()
+    root.clipboard_append(text)
+    messagebox.showinfo("Copiar texto", "El texto se ha copiado al portapapeles.")
+
+def submit_elements(elements, subindices, num_elements, Eg, textbox, generate_graphs_var):
+    calculation, electronegativities = get_element_data_GUI(elements, subindices, num_elements)
+
+    if calculation is None and electronegativities is None:
+        return
+
+    Bc1, Bv1, Bc2, Bv2 = calculate_band_borders(calculation, float(Eg.get()))
+
+    electronegativities_info = "\n".join(
+        [f"La electronegatividad de {elements[i].get()} es: {electronegativities[i]} eV" for i in range(num_elements)])
+
+    compound_name = ' '.join([f"{elements[i].get()}{str(subindices[i].get())}" for i in range(len(elements))])
+    results_text = f"Nombre del compuesto: {compound_name}\n\n"\
+                   f"La electronegatividad absoluta del compuesto es: {round(calculation, 2)} eV \n" \
+                   f"Su borde de banda de conducción vs AVS es de: {round(Bc1, 2)} eV \n" \
+                   f"Su borde de banda de valencia vs AVS es de: {round(Bv1, 2)} eV \n" \
+                   f"Su borde de banda de conducción vs NHE es de: {round(Bc2, 2)} eV \n" \
+                   f"Su borde de banda de valencia vs NHE es de: {round(Bv2, 2)} eV"
+
+    textbox.config(state=tk.NORMAL)
+    textbox.delete(1.0, tk.END)
+    textbox.insert(tk.END, results_text)
+    textbox.config(state=tk.DISABLED)
+
+    if generate_graphs_var.get():  # Verifica si el switch está activado
+        generate_chart_popup(elements, subindices, Bc1, Bv1, Bc2, Bv2)
+
+def on_entry_click(event):
+    """Función que se ejecuta cuando el usuario hace clic en una ventana de entrada."""
+    if event.widget.get() == event.widget.default_text:
+        event.widget.delete(0, "end")
+        event.widget.insert(0, '')
+        event.widget.config(fg='grey')
+
+def on_focusout(event):
+    """Función que se ejecuta cuando el usuario abandona una ventana de entrada."""
+    if not event.widget.get():
+        event.widget.insert(0, event.widget.default_text)
+        event.widget.config(fg='grey')        
+        
+        
+def create_element_entries(root, num_elements):
+    elements = []
+    subindices = []
+    for i in range(num_elements):
+        tk.Label(root, text=f"Elemento {i + 1}:").grid(row=i + 2, column=0, sticky="w")
+        element = tk.Entry(root)
+        element.grid(row=i + 2, column=1)
+        elements.append(element)
+
+        tk.Label(root, text=f"Subíndice del Elemento {i + 1}:").grid(row=i + 2, column=2, sticky="w")
+        subindex = tk.Entry(root)
+        subindex.grid(row=i + 2, column=3)
+        subindices.append(subindex)
+
+    # Añadir valores predeterminados
+    elements[0].default_text = "Bi"
+    elements[0].insert(0, elements[0].default_text)
+    elements[0].config(fg='grey')
+    elements[0].bind('<FocusIn>', on_entry_click)
+    elements[0].bind('<FocusOut>', on_focusout)
+
+    subindices[0].default_text = "5"
+    subindices[0].insert(0, subindices[0].default_text)
+    subindices[0].config(fg='grey')
+    subindices[0].bind('<FocusIn>', on_entry_click)
+    subindices[0].bind('<FocusOut>', on_focusout)
+
+    return elements, subindices
+
+def on_num_elements_change(root, elements_var, subindices_var, var):
+    for widget in root.winfo_children():
+        grid_info = widget.grid_info()
+        if 'row' in grid_info and 2 <= int(grid_info["row"]) < 20:
+            widget.grid_forget()
+
+    elements, subindices = create_element_entries(root, var.get())
+    elements_var.clear()
+    elements_var.extend(elements)
+    subindices_var.clear()
+    subindices_var.extend(subindices)
+
+def main_GUI():
+    root = tk.Tk()
+    root.title('Cálculo de Electronegatividad')
+
+    # Configuración del tema moderno y minimalista con ttkbootstrap
+    style = Style(theme='minty') # Puedes cambiar el tema según tus necesidades
+    root = style.master
+
+    # Configuración de los estilos para los widgets
+    style.configure('TLabel', font=('Helvetica', 12), foreground='#333')
+    style.configure('TButton', font=('Helvetica', 12))
+    style.configure('TEntry', font=('Helvetica', 12))
+
+    # Aumentar el tamaño de la ventana en un 10%
+    width = int(root.winfo_screenwidth() * 0.40)
+    height = int(root.winfo_screenheight() * 0.5)
+    root.geometry(f'{width}x{height}')
+
+    tk.Label(root, text='Número de átomos en el compuesto:').grid(row=0, column=0, sticky='w')
+
+    var = tk.IntVar(root)
+    var.set(2)
+
+    elements = []
+    subindices = []
+
+    num_elements_selector = ttk.OptionMenu(root, var, *range(1, 10),
+                                           command=lambda _: on_num_elements_change(root, elements, subindices, var))
+    num_elements_selector.grid(row=0, column=1, sticky='w')
+
+    on_num_elements_change(root, elements, subindices, var)
+
+    tk.Label(root, text='Eg (Band gap):').grid(row=20, column=0, sticky='w')
+    Eg = tk.Entry(root)
+    Eg.grid(row=20, column=1)
+
+    # Añadir valor predeterminado para Eg
+    Eg.default_text = "2.3"
+    Eg.insert(0, Eg.default_text)
+    Eg.config(fg='grey')
+    Eg.bind('<FocusIn>', on_entry_click)
+    Eg.bind('<FocusOut>', on_focusout)
+
+    textbox = tk.Text(root, width=80, height=15)
+    textbox.grid(row=22, column=0, columnspan=4, padx=15, pady=15)
+    textbox.config(state=tk.DISABLED)
+
+    # Switch para controlar la generación de gráficos
+    generate_graphs_var = tk.BooleanVar(value=True)  # Por defecto está activado
+    generate_graphs_check = ttk.Checkbutton(root, text="Generar gráficos", variable=generate_graphs_var)
+    generate_graphs_check.grid(row=21, column=3)
+
+    submit = tk.Button(root, text='Calcular', command=lambda: submit_elements(elements, subindices, var.get(), Eg, textbox, generate_graphs_var))
+    submit.grid(row=21, column=1)
+
+    copy_button = tk.Button(root, text='Copiar resultados', command=lambda: copy_text(textbox.get(1.0, 'end-1c'), root))
+    copy_button.grid(row=21, column=2)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main_GUI()
